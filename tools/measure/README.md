@@ -5,3 +5,8 @@
 - `bench-twitch-parse.mjs`：Twitch形式JSONの逐次スキャナ＋圧縮配列の試作の速度・保持量を測る（合成データを生成して測る）。`node --expose-gc bench-twitch-parse.mjs twitch_synth.json 220000 [scan]`。
 
 測定環境：Node 24.20.0、Windows。WebKit・iPhoneでの値ではない。
+
+## 本実装の実測（②③。Node上）
+
+- `bench-parse-chat.mjs`：`src/chat/parseChat.ts` の速度・保持量。`node --expose-gc tools/measure/bench-parse-chat.mjs <twitch|youtube> [件数]`。
+- `bench-sqlite.mjs`：`src/emoji/sqliteReader.ts` の検索時間・読み込み回数。`node tools/measure/bench-sqlite.mjs <sqlite>`、または `--synth <出力先> <行数> <BLOBバイト>`。
