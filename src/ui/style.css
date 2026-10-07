@@ -175,3 +175,18 @@ body {
   height: 1.5em;
   vertical-align: middle;
 }
+
+/* 診断表示（暫定コード。⑦で撤去する） */
+#diag {
+  position: fixed;
+  right: 4px;
+  bottom: 4px;
+  margin: 0;
+  padding: 4px 6px;
+  max-width: 96vw;
+  background: rgba(0, 0, 0, 0.75);
+  color: #9f9;
+  font: 10px/1.3 ui-monospace, monospace;
+  pointer-events: none;
+  white-space: pre-wrap;
+}

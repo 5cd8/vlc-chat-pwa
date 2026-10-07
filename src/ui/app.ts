@@ -1,6 +1,7 @@
 import { openEmojiDb } from '../emoji/sqliteReader';
 import { EmojiImageCache } from '../emoji/emojiImageCache';
 import { ChatSync } from '../chat/sync';
+import { createMkvPlayer, type MkvPlayerHandle } from '../media/mkvPlayer';
 import { createNativePlayer } from '../media/nativePlayer';
 import { ChatView } from './chatView';
 import { startChatParse } from './chatParseClient';
@@ -27,6 +28,16 @@ export function startApp(): void {
   const controls = new Controls(must('controls'), video);
 
   let playerNote = '';
+  // 診断表示（暫定コード。⑦で配線ごと撤去する）
+  const diagEl = document.createElement('pre');
+  diagEl.id = 'diag';
+  document.body.appendChild(diagEl);
+  let diagnostics: () => string = () => '';
+  setInterval(() => {
+    const text = diagnostics();
+    diagEl.textContent = text;
+    diagEl.hidden = text === '';
+  }, 1000);
   let lastState: SessionState | null = null;
 
   const syncChat = (): void => {
@@ -77,21 +88,27 @@ export function startApp(): void {
     createPlayer: (file, kind) => {
       controls.resetRate();
       controls.setEnabled(false);
-      if (kind === 'mkv') {
-        playerNote = 'MKVの再生にはまだ対応していません';
-        return { dispose: () => undefined };
-      }
       playerNote = '準備中…';
-      return createNativePlayer(video, file, {
+      const callbacks = {
         onReady: () => {
           controls.setEnabled(true);
           setPlayerNote('');
         },
-        onError: (message) => {
+        onError: (message: string) => {
           controls.setEnabled(false);
           setPlayerNote(message);
         },
-      });
+      };
+      if (kind === 'mkv') {
+        const mkv: MkvPlayerHandle = createMkvPlayer(video, file, {
+          ...callbacks,
+          onWarning: (message) => setPlayerNote(`注意: ${message}`),
+        });
+        diagnostics = () => mkv.diagnostics();
+        return mkv;
+      }
+      diagnostics = () => '';
+      return createNativePlayer(video, file, callbacks);
     },
     openEmoji: openEmojiDb,
     resetViews: () => {
