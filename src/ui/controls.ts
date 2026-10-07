@@ -23,7 +23,7 @@ export class Controls {
     root: HTMLElement,
     private readonly video: HTMLVideoElement,
   ) {
-    root.innerHTML = '';
+    root.replaceChildren();
     this.playButton = document.createElement('button');
     this.playButton.type = 'button';
     this.playButton.className = 'play';

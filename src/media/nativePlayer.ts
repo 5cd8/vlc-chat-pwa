@@ -23,15 +23,6 @@ export function describeMediaError(video: HTMLVideoElement): string {
   }
 }
 
-/** video 要素を初期状態へ戻す。ファイルの参照とオブジェクトURLを外す（4.3節）。 */
-export function resetVideoElement(video: HTMLVideoElement): void {
-  video.pause();
-  const src = video.currentSrc || video.src;
-  video.removeAttribute('src');
-  video.load();
-  if (src.startsWith('blob:')) URL.revokeObjectURL(src);
-}
-
 export function createNativePlayer(video: HTMLVideoElement, file: File, callbacks: PlayerCallbacks): { dispose(): void } {
   video.playsInline = true;
   video.preservesPitch = true; // 要件3「音程は保つ」。既定値に頼らず明示する
