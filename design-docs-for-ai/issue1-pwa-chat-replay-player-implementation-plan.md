@@ -92,13 +92,13 @@ Issueの機能要件1〜7をすべて実装する。非ゴールはIssue記載�
 | 対象 | 方式 | 上限の見積り | 根拠・備考 |
 |---|---|---|---|
 | ネイティブ再生（MP4/MOV/WebM） | `video.src = URL.createObjectURL(file)`。JSはバイトに触れない | JSヒープ ≈ 0。デコード用のバッファはWebKitのメディアプロセス側 | Fileはディスク上の実体を参照するblob。U2で実機確認 |
-| MKV再生（MSE） | 5.3節。BlobSource＋パケット単位のストリーム供給 | **8Mbps・GOP 5秒で約100MB、20Mbps・GOP 10秒で約225MB。GOPが長いほど急増する**（20Mbps・GOP 60秒で約710MB。4.4節の実測表）。内訳：先読み（前方）＋後方の保持（15秒＋GOP）＋`Output` のピーク（**実測：最大フラグメント1個分の約3.2倍＋約30MB**）。`Output` のメタデータはローテーションで一定に保つ（実測：なしだと約15KB/秒で増え、3時間で約160MB） | 映像20Mbps（2.5MB/s）を最悪値として、先読みは**秒数とバイト数の小さい方**で打ち切る。UAによる自動追い出し（`bufferedchange`）にも従う。パケットは先読みせず1件ずつ読む |
+| MKV再生（MSE） | 5.3節。BlobSource＋パケット単位のストリーム供給 | **8Mbps・GOP 5秒で約100MB、20Mbps・GOP 10秒で約180MB**（4.4節の実測表。GOPが長いと急増するので、断片が40MiBを超えるMKVは再生を断る）。内訳：SourceBuffer（総量予算80MiB以内。先読み30秒＋後方15秒）＋`Output` のピーク（**実測：最大フラグメント1個分の約3.2倍＋約30MB**）。`Output` のメタデータはローテーションで一定に保つ（実測：なしだと約15KB/秒で増え、3時間で約160MB） | 映像20Mbps（2.5MB/s）を最悪値として、先読みは**30秒と、「常駐バイト数＋次の断片 ≦ 総量予算80MiB」の両方**で打ち切る（5.3節 手順4）。UAによる自動追い出し（`bufferedchange`）にも従う。パケットは先読みせず1件ずつ読む |
 | チャットJSON | Workerでストリーム解析し、圧縮済み配列で保持（5.2節） | **保持：22万件で約14MB（実測）、50万件で約32MB。解析中のピーク：昇順の入力なら保持量とほぼ同じ。昇順でない入力の並べ替え時だけ `records` の2倍（50万件で約64MB）** | 実測（合成した165MB・22万件のTwitch形式。Node・Windows）：`records` 13.3MB（1件あたり約60B）＋時刻0.8MB。`records` はチャンクのまま連結せずに保持する（5.2節）。読み込みは1MiBずつ |
 | チャット表示DOM | 最新200件だけを保持（PC版の `MaxItems = 200` と同じ） | 約200行 | 古い行は削除。シーク時は作り直し |
 | 絵文字 | sqliteは5.4節の独自リーダー。画像は取得したものをオブジェクトURL化してLRUで保持（1000件（PC版の `EmojiImageCache` と同じ）**かつ合計32MiB以内**）、追い出し時に `URL.revokeObjectURL` | リーダーのページキャッシュ ≤ 8MiB（オーバーフロー本体は含めない）。画像 ≤ 1000件かつ ≤ 32MiB | sqliteのファイルサイズに依存しない（M3） |
 | アプリ本体・Service Worker | Viteのビルド成果物（数百KB〜1MB台） | ― | 動画・JSON・sqliteは一切キャッシュしない |
 
-合計（MKV再生中。**チャットの解析は再生と並行するので、解析中のピークも重ねる**）：8Mbps・GOP 5秒で約150〜215MB、20Mbps・GOP 10秒で約300〜370MB（MKV 100〜225MB＋チャット解析のピーク（22万件〜50万件）約35〜100MB＋絵文字32MiB＋ページキャッシュ8MiB）を設計目標にする。**チャットの解析を待たずに再生を始める**（解析のピークが保持量とほぼ同じで小さいため。解析中はチャット欄に進捗（件数）を表示する。ユーザーから見える挙動なので、実装前に確認する（1節））。GOPの長いMKVは4.4節の二段階の扱いにする。実機のタブ上限は公開されていないため、これは見積りであり、実機の長時間再生（S2）と、解析（S3）で落ちないことを確認する。
+合計（MKV再生中。**チャットの解析は再生と並行するので、解析中のピークも重ねる**）：8Mbps・GOP 5秒で約170〜240MB、20Mbps・GOP 10秒で約260〜320MB（MKV 約100〜185MB＋チャット解析のピーク（22万件〜50万件）約35〜100MB＋絵文字32MiB＋ページキャッシュ8MiB）を設計目標にする。**チャットの解析を待たずに再生を始める**（解析のピークが保持量とほぼ同じで小さいため。解析中はチャット欄に進捗（件数）を表示する。ユーザーから見える挙動なので、実装前に確認する（1節））。GOPの長いMKVは4.4節の三段階（通常／警告／再生を断る）の扱いにする。実機のタブ上限は公開されていないため、これは見積りであり、実機の長時間再生（S2）と、解析（S3）で落ちないことを確認する。
 
 ### 4.3 メモリを増やさないための具体策（実装が守ること）
 
@@ -111,21 +111,21 @@ Issueの機能要件1〜7をすべて実装する。非ゴールはIssue記載�
 
 **方法**：ffmpeg（libx264、CBR、1080p30のノイズ入りテスト映像＋Opus 128kbps）で、GOPとビットレートを変えた合成MKVを作り、Mediabunnyで5.3節の手順どおりフラグメントMP4へ詰め替えた（映像と音声を交互に `add`、`minimumFragmentDuration: 2`、`AppendOnlyStreamTarget`、書き込み先は受け取ってすぐ捨てる）。`process.memoryUsage()` の `heapUsed + arrayBuffers` の増分の最大を記録した（Node 24・Windows。WebKitではなく、`appendBuffer` で保持される分とSourceBuffer内のデータは含まない）。測定スクリプトと動画の生成コマンドは `tools/measure/`（README・`gen-fixtures.sh`・`measure-output-memory.mjs`・`bench-twitch-parse.mjs`）にある。動画本体は大きいのでコミットしない（生成コマンドで作り直せる）。
 
-| 条件 | 最大フラグメント | `Output` のピーク（実測） | 推定式 3.2×F＋30 | SourceBuffer（前方＋後方）の計算値 | MKV合計 |
-|---|---|---|---|---|---|
-| 8Mbps・GOP 5秒 | 5.0MB | 47MB | 46MB | 30＋20MB | 約97MB |
-| 8Mbps・GOP 30秒 | 29.2MB | 101MB | 123MB | 30＋45MB | 約176MB |
-| 20Mbps・GOP 10秒 | 24.9MB | 99MB | 110MB | 64＋62MB | 約225MB |
-| 20Mbps・GOP 30秒 | 73.1MB | 226MB | 264MB | 64＋112MB | 約402MB |
-| 20Mbps・GOP 60秒 | 144.4MB | 458MB | 491MB | 64＋187MB | 約709MB |
+| 条件 | 最大フラグメント | `Output` のピーク（実測） | 推定式 3.2×F＋30 | SourceBuffer（計算値） | MKV合計 | 今の方針での扱い |
+|---|---|---|---|---|---|---|
+| 8Mbps・GOP 5秒 | 5.0MB | 47MB | 46MB | 30＋20MB | 約97MB | 通常 |
+| 8Mbps・GOP 30秒 | 29.2MB | 101MB | 123MB | 30＋45MB | 約176MB | 警告（24MiB超） |
+| 20Mbps・GOP 10秒 | 24.9MB | 99MB | 110MB | 予算の上限 約84MB（80MiB） | 約183MB | 通常（**実機で最後まで再生できた**） |
+| 20Mbps・GOP 30秒 | 73.1MB | 226MB | 264MB | （再生しない） | （再生しない） | 再生を断る（**実機で再生が止まった**） |
+| 20Mbps・GOP 60秒 | 144.4MB | 458MB | 491MB | （再生しない） | （再生しない） | 再生を断る |
 
-SourceBuffer内の量は、設計上の上限から計算した値で、実測ではない（実機の総容量は約100MiBで、実際に入るのはこの値より小さい。3.1節）。実機のタブの上限は公開されていないので、「約400MB以上は未検証で危険、700MB級は落ちる恐れが大きい」というのは推測である。
+SourceBuffer内の量は、設計上の上限から計算した値で、実測ではない（実機の総容量は約100MiB。3.1節）。GOP 30秒・60秒の行は、`Output` のピークの実測（Node）を、メモリがGOPにほぼ比例することの根拠として残している（実機でその素材は再生しない）。実機のタブの上限は公開されていないので、「約400MB以上は未検証で危険」というのは推測である。
 
 **`Output` のローテーションの効果**（約99,000パケット＝900秒の低ビットレート動画）：ローテーションなしだとヒープが約3.4MB/225秒ずつ増えた（約15KB/秒、3時間で約160MB）。300秒ごとのローテーションでは4.5→3.6→2.7MBで一定だった。
 
 **GOPが長いと、動作に何が起きるか**
 
-1. **メモリ**：上表のとおり、GOPにほぼ比例して増える（20Mbpsで、GOP 10秒→60秒で約225MB→約710MB）。
+1. **メモリ**：上表のとおり、GOPにほぼ比例して増える（20Mbpsで、GOP 10秒→60秒で `Output` のピークが99MB→458MB。このため断片40MiB超は再生しない）。
 2. **1回の `appendBuffer` の上限（実測：約4MiB）**：フラグメントが73〜144MBでも、**4MiBずつに分けて追加すれば通る**（実測。合計の上限ではない）。分けずに追加すると `QuotaExceededError` になり、再試行しても通らず再生できない。
 3. **容量（実測：総容量約100MiB）**：再生中のGOPは追い出せず、Mediabunnyはフラグメントを丸ごとしか出さないので、**今のGOPと次のGOPの両方が収まる（2F ≦ 総量）必要がある**。収まらないと、iPhoneが再生中のGOPごと追い出して止まる（b20_g30＝F 73MBで実測）。
 4. **シークの待ち**：目標位置の前のキーフレームから目標まで、読み込んで追加する必要がある。最大でGOP1個分（20Mbps・GOP 60秒で約150MB）。Nodeの詰め替え速度は約250MB/s（433MBを1.7秒）なので、デスクトップで約0.6秒＋ハードウェアデコードの追いつき。iPhoneは未計測。
@@ -214,13 +214,13 @@ PC版 `ChatSyncService` と `MainWindow.SyncChatToTime`（MainWindow.xaml.cs 824
 
 #### ネイティブ（`nativePlayer.ts`）
 
-MP4/MOV/WebMは `video.playsInline = true; video.preservesPitch = true`（要件3「音程は保つ」。既定値に頼らず明示する）`; video.src = URL.createObjectURL(file)`。MKVでないのに再生できない（`error` イベント）ときは、エラー内容（コーデック名が分かれば）を表示する。WebMが再生できない場合の代替経路はU9の「外れたとき」（MSE経路へ回す）に従う。
+MP4/MOV/WebMは `video.playsInline = true; video.preservesPitch = true`（要件3「音程は保つ」。既定値に頼らず明示する）`; video.src = URL.createObjectURL(file)`。**`stalled` は再生中も約6秒ごとに出る**（実機・U2：61分の連続再生で、`pause`・`waiting`・`error` は出なかった）ので、エラー扱いにもログにも出さない。再生の中断の判定は `waiting`・`error` だけで行う。ファイル選択の確定には数秒〜十数秒かかる（実機で3〜14秒）ので、選択後から再生が始まるまでは「準備中」を表示する（5.5節）。MKVでないのに再生できない（`error` イベント）ときは、エラー内容（コーデック名が分かれば）を表示する。WebMが再生できない場合の代替経路はU9の「外れたとき」（MSE経路へ回す）に従う。
 
 #### MKV（`mkvPlayer.ts`）— `ManagedMediaSource` ＋ Mediabunny
 
 目的：MKVを**再エンコードなし**でフラグメントMP4にして `ManagedMediaSource` に供給し、通常の `<video>` で再生する（再生速度・音程維持・A/V同期はブラウザ標準のまま使える）。
 
-1. **準備**：`new Input({ formats: ALL_FORMATS, source: new BlobSource(file, { maxCacheSize: 4 * 1024 * 1024 }) })`。映像・音声トラックの `getCodecParameterString()` から `video/mp4; codecs="<映像>, <音声>"` を組み立て（**音声が `opus` なら `Opus`（先頭大文字）に直す**。MP4内のOpusの正式な文字列で、iPhoneの `ManagedMediaSource` は小文字を偽にする：3.1節）、`ManagedMediaSource.isTypeSupported()` で確認。偽ならこのファイルは再生不可として、コーデック名を表示する。再生時間は `getDurationFromMetadata()`（無ければ U6 の方針）。**再生前にGOPを判定し、4.4節の二段階（通常／警告／再生を断る）で扱う**。`video.disableRemotePlayback = true`、`video.preservesPitch = true`、`video.src = URL.createObjectURL(mediaSource)`。**トラックの選び方**：`getPrimaryVideoTrack()`・`getPrimaryAudioTrack()` の1本ずつだけを使う（複数の音声トラック・字幕トラックは無視する）。映像トラックが無ければ再生不可として表示する。**音声トラックが無ければ**、`codecs` を映像のみにし、`Output` に映像トラックだけを追加する（交互書き込みは1トラックになる）。`startstreaming`・`endstreaming` は `ManagedMediaSource` に、`bufferedchange` は `ManagedSourceBuffer`（`addSourceBuffer` の戻り値）に登録する。`sourceopen` のハンドラは**`{ once: true }`で登録**し、`addSourceBuffer` と `mediaSource.duration = duration` を行う（`endOfStream()` 後にシークで `appendBuffer` すると、仕様上 `readyState` が `'open'` へ戻り `sourceopen` が再発火する。そのたびに `addSourceBuffer` を重ねて呼ばないため）。
+1. **準備**：`new Input({ formats: ALL_FORMATS, source: new BlobSource(file, { maxCacheSize: 4 * 1024 * 1024 }) })`。映像・音声トラックの `getCodecParameterString()` から `video/mp4; codecs="<映像>, <音声>"` を組み立て（**音声が `opus` なら `Opus`（先頭大文字）に直す**。MP4内のOpusの正式な文字列で、iPhoneの `ManagedMediaSource` は小文字を偽にする：3.1節）、`ManagedMediaSource.isTypeSupported()` で確認。偽ならこのファイルは再生不可として、コーデック名を表示する。再生時間は `getDurationFromMetadata()`（無ければ U6 の方針）。**再生前にGOPを判定し、4.4節の三段階（通常／警告／再生を断る）で扱う**。`video.disableRemotePlayback = true`、`video.preservesPitch = true`、`video.src = URL.createObjectURL(mediaSource)`。**トラックの選び方**：`getPrimaryVideoTrack()`・`getPrimaryAudioTrack()` の1本ずつだけを使う（複数の音声トラック・字幕トラックは無視する）。映像トラックが無ければ再生不可として表示する。**音声トラックが無ければ**、`codecs` を映像のみにし、`Output` に映像トラックだけを追加する（交互書き込みは1トラックになる）。`startstreaming`・`endstreaming` は `ManagedMediaSource` に、`bufferedchange` は `ManagedSourceBuffer`（`addSourceBuffer` の戻り値）に登録する。`sourceopen` のハンドラは**`{ once: true }`で登録**し、`addSourceBuffer` と `mediaSource.duration = duration` を行う（`endOfStream()` 後にシークで `appendBuffer` すると、仕様上 `readyState` が `'open'` へ戻り `sourceopen` が再発火する。そのたびに `addSourceBuffer` を重ねて呼ばないため）。
 2. **供給（ポンプ）**：位置 `startTime`（初回は0）から供給する。
    - **開始位置**：映像は `getKeyPacket(startTime)` で得たキーフレーム（時刻 `k`）から。音声は `getPacket(k)`（開始時刻が `k` **以下**の最後のパケット。`k` より少し前から始まってよい）から。`getKeyPacket(startTime)` が `null`（最初のキーフレームが `startTime` より後）なら `getFirstKeyPacket()` から、`getPacket(k)` が `null`（音声が映像より遅れて始まる）なら `getFirstPacket()` から始める（音声が始まるまでの区間は映像だけを書く）。
    - **Outputの組み立て順**（mediabunny 1.61.3の仕様。順序を間違えると最初の `add` でassertに失敗する）：`new EncodedVideoPacketSource(videoTrack.codec)`・`new EncodedAudioPacketSource(audioTrack.codec)` → `output.addVideoTrack(..)`・`output.addAudioTrack(..)` → `await output.start()` → **各トラックの最初の `add` に `{ decoderConfig: await track.getDecoderConfig() }` を渡す**（2回目以降は不要）。`Output` は `new Output({ format: new Mp4OutputFormat({ fastStart: 'fragmented', minimumFragmentDuration: 2 }), target })`（**単位は秒**）、`target` は `new AppendOnlyStreamTarget(writable)`（`writable` は `WritableStream<Uint8Array>`。fragmentedの出力は追記のみで、このターゲットが内部で連続性を検査する。確定した分を即座に出力する）。
@@ -262,7 +262,7 @@ MP4/MOV/WebMは `video.playsInline = true; video.preservesPitch = true`（要件
 - 本文・投稿者名は `textContent` で挿入する（`innerHTML` を使わない。チャットJSONは外部データ）。リンクのクリック対応は非ゴール（PC版にあるリンク化は移植しない）。
 - 操作パネル：再生／一時停止、シークバー（`input[type=range]`、`aria-label`）、現在位置／長さ、再生速度（PC版と同じ7段階：0.5・0.75・1.0・1.25・1.5・1.75・2.0。動画を切り替えるたびに1.0へ戻し、値は保存しない）。アイコンだけのボタンには `aria-label` を付ける（00 項目9）。ネイティブの全画面は使わない（`playsinline`）。
 - チャット欄：新着を下に追加し、**ユーザーが上へスクロール中でなければ**最下部へ自動スクロール。オーナー・モデレーターは名前に装飾（色以外の記号も併用）。投稿者の色付けはしない。絵文字は `<img>`（`alt` 付き、高さは行高に合わせる）。画像の取得は非同期なので、**チャット欄を作り直した（シーク・動画の切り替え）後に古い `get(url)` の結果が届いたら捨てる**（チャット欄の世代番号を持ち、取得を始めたときの世代と比べる。5.3節の世代番号と同じ考え方）。上へスクロール中かどうかの判定（`isNearBottom`）は、DOMに触れない純粋関数に分けてテストする。
-- 状態：初期画面は「ファイルを選択」ボタン（複数選択。**U1で複数選択できない場合は、「動画を選ぶ」「チャットを選ぶ」「絵文字を選ぶ（任意）」の3つのボタンに分け、選んだものを順にチップで表示する。その場合、(c)の「最初の1つを採用」は不要になる**）と、選ばれたファイルの内訳（動画／チャット／絵文字）と不足の表示。**動画とチャットがそろったら再生を始められ、チャットの解析は再生を妨げない**：チャット欄に「チャットを読み込み中（N件）」を表示し、解析が終わったら再生位置に合わせて表示する（解析中にシークされたら、完了後に再生位置へ同期する）。エラー（再生不可のコーデック、GOPが長すぎるMKV等）を表示する。動画の選択元の案内文（「『ファイル』アプリから選ぶ」）を出すかは、U1で「写真ライブラリ経由が元のファイルのままか」を確かめた結果で決める（1節 (e)）。チャットの解析結果が0件のとき（形式の取り違えを含む）は「チャットを読み取れませんでした」と表示し、再生は続ける。
+- 状態：初期画面は「ファイルを選択」ボタン（複数選択。**U1で複数選択できない場合は、「動画を選ぶ」「チャットを選ぶ」「絵文字を選ぶ（任意）」の3つのボタンに分け、選んだものを順にチップで表示する。その場合、(c)の「最初の1つを採用」は不要になる**）と、選ばれたファイルの内訳（動画／チャット／絵文字）と不足の表示。**動画とチャットがそろったら再生を始められ、チャットの解析は再生を妨げない**：チャット欄に「チャットを読み込み中（N件）」を表示し、解析が終わったら再生位置に合わせて表示する（解析中にシークされたら、完了後に再生位置へ同期する）。ファイルを選んでから再生が始まるまでは「準備中」を表示する。エラー（再生不可のコーデック、GOPが長すぎるMKV等）を表示する。動画の選択元の案内文（「『ファイル』アプリから選ぶ」）を出すかは、U1で「写真ライブラリ経由が元のファイルのままか」を確かめた結果で決める（1節 (e)）。チャットの解析結果が0件のとき（形式の取り違えを含む）は「チャットを読み取れませんでした」と表示し、再生は続ける。
 
 ### 5.6 PWA・配信
 
