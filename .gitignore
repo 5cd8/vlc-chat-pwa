@@ -5,3 +5,4 @@ dist/
 *.webm
 tools/measure/*.json
 tools/measure/*.jsonl
+testdata/

@@ -1,12 +1,6 @@
 import { transferListOf } from './chatStore';
 import { parseChatFile } from './parseChat';
-import type { ChatStore } from './types';
-
-export type ParseRequest = { file: File };
-export type ParseResponse =
-  | { type: 'progress'; count: number }
-  | { type: 'done'; store: ChatStore }
-  | { type: 'error'; message: string };
+import type { ParseRequest, ParseResponse } from './workerMessages';
 
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<ParseRequest>) => void) | null;

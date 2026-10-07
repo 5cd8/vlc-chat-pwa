@@ -1,0 +1,177 @@
+:root {
+  color-scheme: dark;
+  --bg: #0e0e10;
+  --panel: #18181b;
+  --line: #2a2a2e;
+  --text: #efeff1;
+  --muted: #adadb8;
+  --accent: #9147ff;
+  --owner: #ff6b6b;
+  --mod: #3ecf8e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.bar {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+#pick {
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+
+#status {
+  flex: 1;
+  min-width: 0;
+  max-height: 6.5em;
+  overflow-y: auto;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+#status p {
+  margin: 0;
+}
+
+#video-wrap {
+  flex: none;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 45dvh;
+  background: #000;
+}
+
+#video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+#controls button.play {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 18px;
+}
+
+#controls .seek {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  accent-color: var(--accent);
+}
+
+#controls .time {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+#controls .rate {
+  flex: none;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+#controls :disabled {
+  opacity: 0.4;
+}
+
+#chat-note {
+  flex: none;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#chat-note:empty {
+  display: none;
+}
+
+#chat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 12px;
+}
+
+.chat-line {
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-author {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.chat-author.owner {
+  color: var(--owner);
+}
+
+.chat-author.moderator {
+  color: var(--mod);
+}
+
+.chat-mark {
+  margin-right: 2px;
+}
+
+.chat-emoji img {
+  height: 1.5em;
+  vertical-align: middle;
+}
