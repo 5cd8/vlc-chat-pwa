@@ -1,4 +1,7 @@
 node_modules/
+dist/
 *.mkv
 *.mp4
 *.webm
+tools/measure/*.json
+tools/measure/*.jsonl
